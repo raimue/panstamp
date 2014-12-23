@@ -2,4 +2,6 @@
 python/swapdmt/config/devices/
 python/swapdmt/config/devices.tar
 python/swapdmt/config/swapnet.json
+python/swapdmt-cmd/config/devices/
+python/swapdmt-cmd/config/devices.tar
 python/swapdmt-cmd/config/swapnet.json

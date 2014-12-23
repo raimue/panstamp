@@ -46,71 +46,32 @@ void CC430CORE::setLowPowerMode(bool lpm4)
 {
   // Stop WDT
   disableWatchDog();
-  
-  /*
-  // Disable ADC
-  ADC12CTL0 &= ~ADC12ON;
-  ADC12CTL0 &= ~ADC12REFON;
-  ADC12CTL0 &= ~ADC12ENC;
-  */
-
-  // Keep current port mapping
-  portConfig[0].mapping[0] = P1MAP0;
-  portConfig[0].mapping[1] = P1MAP1;
-  portConfig[0].mapping[2] = P1MAP2;
-  portConfig[0].mapping[3] = P1MAP3;
-  portConfig[0].mapping[4] = P1MAP4;
-  portConfig[0].mapping[5] = P1MAP5;
-  portConfig[0].mapping[6] = P1MAP6;
-  portConfig[0].mapping[7] = P1MAP7;
-
-  portConfig[1].mapping[0] = P2MAP0;
-  portConfig[1].mapping[1] = P2MAP1;
-  portConfig[1].mapping[2] = P2MAP2;
-  portConfig[1].mapping[3] = P2MAP3;
-  portConfig[1].mapping[4] = P2MAP4;
-  portConfig[1].mapping[5] = P2MAP5;
-  portConfig[1].mapping[6] = P2MAP6;
-  portConfig[1].mapping[7] = P2MAP7;
-
-  portConfig[2].mapping[0] = P3MAP0;
-  portConfig[2].mapping[1] = P3MAP1;
-  portConfig[2].mapping[2] = P3MAP2;
-  portConfig[2].mapping[3] = P3MAP3;
-  portConfig[2].mapping[4] = P3MAP4;
-  portConfig[2].mapping[5] = P3MAP5;
-  portConfig[2].mapping[6] = P3MAP6;
-  portConfig[2].mapping[7] = P3MAP7;
 
   // Keep current port selections
-  portConfig[0].selection = P1SEL;
-  portConfig[1].selection = P2SEL;
-  portConfig[2].selection = P3SEL;
-
-  // Keep current port direction
-  portConfig[0].direction = P1DIR;
-  portConfig[1].direction = P2DIR;
-  portConfig[2].direction = P3DIR;
+  portSelection[0] = P1SEL;
+  portSelection[1] = P2SEL;
+  portSelection[2] = P3SEL;
 
   // Configure ports as binary I/O's
   P1SEL = 0;
   P2SEL = 0;
-  P3SEL = 0;
-
-/*
-  // Set port levels
-  PJOUT = 0;
-  P1OUT = 0;//0x30; // I2C lines remain high to not to sink current from
-                // I2C pull-up resistors (when present)                            
-  P2OUT = 0;
-  P3OUT = 0;
-
-  // Configure ports as outputs
-  PJDIR = 0xFF;
-  P1DIR = 0xFF;
-  P2DIR = 0xFF;
-  P3DIR = 0xFF;
-*/
+  
+  // Current hardware version (1.0) uses P3.6 to detect interrupts from
+  // the on-board accelerometer. For this application, P3.6 is configured
+  // as a timer capture input to simulate pin interrupts.
+  // (P3 does not natively support pin interrupts)
+  // In future hardware revisions, a pin supporting true pin interrupts
+  // should be used instead.
+  P3SEL &= BIT6;
+  P3DIR |= portSelection[3] & ~BIT6;
+    
+  // I2C lines remain high to not to sink current through
+  // I2C pull-up resistors
+  P1OUT |= 0x30;
+ 
+  // Configure ports working as alternative functions as outputs
+  P1DIR |= portSelection[0];
+  P2DIR |= portSelection[1];
 
   // Enter lowest power VCore level and MCLK = 1 MHz
   _SET_VCORE_1MHZ(0);
@@ -140,54 +101,17 @@ void CC430CORE::setLowPowerMode(bool lpm4)
  */
 void CC430CORE::setNormalMode(void)
 {
-  PJOUT |= BIT1;
-
 	// Configure PMM and SCLK for RF operation
   //_SET_VCORE_12MHZ(2);
   _SET_VCORE_8MHZ(0);
   
   // Enable WDT again
   enableWatchDog();
-     
-  // Recover old port mapping
-  P1MAP0 = portConfig[0].mapping[0];
-  P1MAP1 = portConfig[0].mapping[1];
-  P1MAP2 = portConfig[0].mapping[2];
-  P1MAP3 = portConfig[0].mapping[3];
-  P1MAP4 = portConfig[0].mapping[4];
-  P1MAP5 = portConfig[0].mapping[5];
-  P1MAP6 = portConfig[0].mapping[6];
-  P1MAP7 = portConfig[0].mapping[7];
-
-  P2MAP0 = portConfig[1].mapping[0];
-  P2MAP1 = portConfig[1].mapping[1];
-  P2MAP2 = portConfig[1].mapping[2];
-  P2MAP3 = portConfig[1].mapping[3];
-  P2MAP4 = portConfig[1].mapping[4];
-  P2MAP5 = portConfig[1].mapping[5];
-  P2MAP6 = portConfig[1].mapping[6];
-  P2MAP7 = portConfig[1].mapping[7];
-
-  P3MAP0 = portConfig[2].mapping[0];
-  P3MAP1 = portConfig[2].mapping[1];
-  P3MAP2 = portConfig[2].mapping[2];
-  P3MAP3 = portConfig[2].mapping[3];
-  P3MAP4 = portConfig[2].mapping[4];
-  P3MAP5 = portConfig[2].mapping[5];
-  P3MAP6 = portConfig[2].mapping[6];
-  P3MAP7 = portConfig[2].mapping[7];
 
   // Recover old port selections
-  P1SEL = portConfig[0].selection;
-  P2SEL = portConfig[1].selection;
-  P3SEL = portConfig[2].selection;
-
-  // Keep current port direction
-  P1DIR = portConfig[0].direction;
-  P2DIR = portConfig[1].direction;
-  P3DIR = portConfig[2].direction;
- 
-  PJOUT &= ~BIT1;
+  P1SEL = portSelection[0];
+  P2SEL = portSelection[1];
+  P3SEL = portSelection[2];
 }
 
 /**
@@ -240,11 +164,24 @@ void CC430CORE::init(uint8_t vCore, uint16_t dcorsel, uint16_t flln)
   UCSCTL6 &= ~(XT1DRIVE_3);                 // Xtal is now stable, reduce drive
                                             // strength
 
-  /* 
+  /*
    * Select Interrupt edge for PA_PD and SYNC signal:
    * Interrupt Edge select register: 1 == Interrupt on High to Low transition.
    */
   RF1AIES = BIT0 | BIT9;
+  
+  // POWER: Turn ADC and reference voltage off to conserve power
+  ADC12CTL0 &= ~ADC12ENC;
+  ADC12CTL0 &= ~ADC12ON;
+  ADC12CTL0 &= ~ADC12REFON;
+  REFCTL0 &= ~REFON;
+  REFCTL0 |= REFTCOFF;  // Temp sensor disabled
+  
+  // Config pins as outputs by default
+  P1DIR = 0xFF;
+  P2DIR = 0xFF;
+  P3DIR = 0xFF;
+  PJDIR = 0xFF;
 }
 
 /**

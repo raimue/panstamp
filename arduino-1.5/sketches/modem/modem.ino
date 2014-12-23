@@ -265,15 +265,13 @@ void setup()
   // Reset serial buffer
   memset(strSerial, 0, sizeof(strSerial));
 
-  Serial.begin(57600);
+  Serial.begin(38400);
+  //Serial.begin(57600);
   Serial.flush();
   Serial.println("");
   
   // Default mode is COMMAND 
   Serial.println("Modem ready!");
-
-  // Setup radio
-  //panstamp.init(CFREQ_868); // Not necessary unless you want to configure a different frequency
 
   // Disable address check from the RF IC
   panstamp.radio.disableAddressCheck();

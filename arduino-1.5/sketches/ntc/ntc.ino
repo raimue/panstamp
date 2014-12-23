@@ -43,7 +43,7 @@
 
 
 // Digital output used to power the thermistor circuit
-#define NTC_POWER_PIN         14
+#define NTC_POWER_PIN         10
 // Analog pin used to read the NTC
 #define NTC_PIN               A1
 // Macros
@@ -61,17 +61,16 @@ THERMISTOR thermistor(NTC_PIN,        // Analog pin
  *
  * Arduino setup function
  */
- #include "HardwareSerial.h"
 void setup()
 {
   int i;
 
-  // Init panStamp
-  //panstamp.init(CFREQ_868);  // Not necessary unless you want a different frequency
-
   // Init SWAP stack
   swap.init();
 
+  // Initialize LED pins
+  pinMode(LED, OUTPUT);
+  
   pinMode(NTC_POWER_PIN, OUTPUT);    // Configure power pin. This pin will be used to power the thermistor
   powerThermistorOff();          // Unpower sensor by default
   

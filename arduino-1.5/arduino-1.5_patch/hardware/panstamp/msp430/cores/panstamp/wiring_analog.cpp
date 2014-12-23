@@ -25,6 +25,7 @@
 #include "cc430f5137.h"
 #include "wiring.h"
 
+
 uint16_t analogPeriod = SYSTEM_CLK_FREQ/490;
 uint16_t analogRes = 255;
 uint16_t analogRef = ADCREF_VCC;
@@ -32,6 +33,13 @@ uint16_t analogRef = ADCREF_VCC;
 //Arduino specifies ~490 Hz for analog out PWM so we follow suit.
 #define PWM_PERIOD analogPeriod // SYSTEM_CLK_FREQ/490
 #define PWM_DUTY(x) ( (unsigned long)x*PWM_PERIOD / (unsigned long)analogRes )
+
+// Calibration data
+#define CALIB_ADC_GAIN      *((uint16_t *)0x1A16)
+#define CALIB_ADC_OFFSET    *((uint16_t *)0x1A18)
+#define CALIB_1V5REF_GAIN   *((uint16_t *)0x1A28)
+#define CALIB_2V0REF_GAIN   *((uint16_t *)0x1A2A)
+#define CALIB_2V5REF_GAIN   *((uint16_t *)0x1A2C)
 
 /**
  * analogRead
@@ -44,13 +52,23 @@ uint16_t analogRef = ADCREF_VCC;
  */
 uint16_t analogRead(uint8_t pin)
 {
+  uint8_t port, bit;
+  volatile uint8_t *dir;
+  
+  uint16_t refGain = 0;
+   
   uint8_t channel;
-
+  
+  // Disable ADC
+  ADC12CTL0 &= ~ADC12ENC;
+   
   // Special analog channel?
   if (pin >= 128)
   {
     channel = pin - 128;
-    REFCTL0 &= ~REFTCOFF; // Temp sensor enabled
+    
+    if (pin == A10)
+      REFCTL0 &= ~REFTCOFF; // Temp sensor enabled
   }
 
   // Check if pin is an analog input
@@ -58,22 +76,38 @@ uint16_t analogRead(uint8_t pin)
 		return 0;
   else
   {
-    uint8_t bit = digitalPinToBitMask(pin);
-    uint8_t port = digitalPinToPort(pin);
+    bit = digitalPinToBitMask(pin);
+    port = digitalPinToPort(pin);
 
     volatile uint8_t *sel = portSelRegister(port);
     *sel |= bit;
+    
+    dir = portDirRegister(port);
+    *dir &= ~bit; // Configure pin as input
   }
 
   // Set ADC reference  
   if (analogRef == ADCREF_VCC)
       ADC12MCTL0 = ADC12SREF_0;  // Vr+=Vcc and Vr-=AVss
   else
-  {    
-    //while(REFCTL0 & REFGENBUSY);
+  {
     // Enable shared reference
-    REFCTL0 |= REFMSTR + analogRef + REFON;
+    REFCTL0 |= REFMSTR + analogRef + REFON;   
     ADC12MCTL0 = ADC12SREF_1;    // Vr+=Vref+ and Vr-=AVss
+    
+    // Select REF calibration gain
+    switch(analogRef)
+    {
+      case ADCREF_1V5:
+        refGain = CALIB_1V5REF_GAIN;
+        break;
+      case ADCREF_2V0:
+        refGain = CALIB_2V0REF_GAIN;
+        break;
+      case ADCREF_2V5:
+        refGain = CALIB_2V5REF_GAIN;
+        break;
+     }
   }
 
   ADC12IFG = 0;                                   // Clear flags
@@ -97,7 +131,23 @@ uint16_t analogRead(uint8_t pin)
   REFCTL0 &= ~REFON;
   REFCTL0 |= REFTCOFF;  // Temp sensor disabled
 
-  return ADC12MEM0;
+  // Config pin as output to save current
+  *dir |= bit;
+
+  uint64_t result = ADC12MEM0;
+
+  if (refGain)
+    result *= refGain;
+
+  result *= CALIB_ADC_GAIN;
+  result /= 0x8000;
+  
+  if (refGain)
+    result /= 0x8000;
+    
+  result += CALIB_ADC_OFFSET;
+
+  return (uint16_t) result;
 }
 
 /**

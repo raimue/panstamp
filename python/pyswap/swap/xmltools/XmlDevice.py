@@ -257,7 +257,7 @@ class XmlDevice(object):
                 if elem is not None:
                     self.txinterval = int(elem.text)
             except IOError as ex:
-                raise SwapException("Unable to parse " + self.fileName + " : " + ex)
+                raise SwapException("Unable to parse " + self.fileName + " : " + str(ex))
 
 
     def getRegList(self, config=False):
@@ -308,7 +308,7 @@ class XmlDevice(object):
                         # Read XML fields
                         paramType = param.get("type", default="num")
                         paramDir = param.get("dir", default="inp")
-                        paramName = param.get("name", default="")
+                        paramName = param.get("name", default="").replace(" ", "_")
                         paramPos = "0"
                         elem = param.find("position")
                         if elem is not None:
